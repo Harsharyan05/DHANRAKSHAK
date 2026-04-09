@@ -30,55 +30,38 @@
 ## System Architecture
 
 ### High-Level Architecture Diagram
-
-\`\`\`
-┌─────────────────────────────────────────────────────────────────┐
-│                         USER INTERFACE                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
-│  │  Landing │  │   Auth   │  │Dashboard │  │  AI Copilot  │   │
-│  │   Page   │  │  Modal   │  │   Page   │  │     Page     │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────────┘   │
-│  ┌──────────┐                                                   │
-│  │ Mind Map │                                                   │
-│  │   Page   │                                                   │
-│  └──────────┘                                                   │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    FRONTEND LAYER (Next.js)                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │  Components  │  │    Hooks     │  │    API Service       │ │
-│  │  - UI Lib    │  │  - useAuth   │  │  - apiCall()         │ │
-│  │  - Auth      │  │  - useMobile │  │  - loginWithGoogle() │ │
-│  │  - Custom    │  │  - useToast  │  │  - submitData()      │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                   AUTHENTICATION LAYER                          │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              Google OAuth 2.0 Provider                   │  │
-│  │  Client ID: 444766138331-k604lsssa4sdjcrg8rbio6agn...   │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    BACKEND API (Node.js)                        │
-│  Base URL: https://overstrong-shortsightedly-jakobe.ngrok-...  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │   /health    │  │ /auth/google │  │     /submit          │ │
-│  │   /verify    │  │   /records   │  │  /record/:id         │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                      DATA PERSISTENCE                           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐ │
-│  │   Database   │  │  Blockchain  │  │   File Storage       │ │
-│  │   (MongoDB)  │  │  (Ethereum)  │  │   (PDF Certs)        │ │
-│  └──────────────┘  └──────────────┘  └──────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-\`\`\`
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant GoogleAuth
+    participant Backend
+    participant Database
+    participant GoogleAPI
+    
+    User->>Frontend: Click "Sign In with Google"
+    Frontend->>GoogleAuth: Open OAuth Modal
+    GoogleAuth->>User: Show Consent Screen
+    User->>GoogleAuth: Grant Permission
+    GoogleAuth->>Frontend: Return ID Token
+    
+    Frontend->>Backend: POST /auth/google {id_token}
+    Backend->>GoogleAPI: Verify ID Token
+    GoogleAPI->>Backend: Token Valid + User Info
+    
+    Backend->>Database: Find/Create User
+    Database->>Backend: User Record
+    
+    Backend->>Backend: Generate JWT Token
+    Backend->>Frontend: Return {token, user}
+    
+    Frontend->>Frontend: Store in localStorage
+    Frontend->>Frontend: Update AuthContext
+    Frontend->>User: Redirect to Dashboard
+    
+    Note over Frontend,Backend: Subsequent API Calls
+    Frontend->>Backend: API Request + Bearer Token
+    Backend->>Backend: Verify JWT
+    Backend->>Frontend: Protected Resource
 
 ---
 
