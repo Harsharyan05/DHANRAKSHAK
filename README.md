@@ -1,4 +1,3 @@
-# Sharpaithon-2.0
 🏭 Dhanrakshak ERP Lite
 
 Affordable ERP Framework for MSME Manufacturing Enterprises
