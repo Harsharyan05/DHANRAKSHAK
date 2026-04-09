@@ -1,99 +1,79 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
-import logging
+import fitz  
+import re
 
-from chatbot import ask_bot  
-from chatbot import init_bot  
-
-# -----------------------------------------------------
-# 🚀 FastAPI App Initialization
-# -----------------------------------------------------
 app = FastAPI(
-    title="Finance RAG Chatbot API",
-    description="Ask tax questions — Retrieval-Augmented LLM Agent",
-    version="1.0.0",
+    title="Form-16 Extractor",
+    description="Extract 10 important fields from a Form-16 PDF"
 )
 
-# -----------------------------------------------------
-# 🌐 CORS (Allow front-end / HF demo UI / apps)
-# -----------------------------------------------------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.get('/')
+def home():
+    return {'message' : "Form-16 Extractor API"}
 
-# -----------------------------------------------------
-# 🛠 Logger
-# -----------------------------------------------------
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("finance-api")
-
-# -----------------------------------------------------
-# 🟢 Request Model
-# -----------------------------------------------------
-class Query(BaseModel):
-    question: str
-
-# -----------------------------------------------------
-# 🚦 Startup — warm the bot (optional)
-# -----------------------------------------------------
-@app.on_event("startup")
-async def startup_event():
-    try:
-        logger.info("🔄 Initializing Finance RAG bot...")
-        init_bot()  # loads embeddings/vectorstore once
-        logger.info("✅ Finance bot ready!")
-    except:
-        logger.exception("❌ Failed to initialize bot")
-
-
-# -----------------------------------------------------
-# 🏠 Root endpoint
-# -----------------------------------------------------
-@app.get("/")
-async def root():
+@app.get('/home')
+def health():
     return {
-        "message": "Welcome to the Finance RAG Chatbot API 💰",
-        "endpoints": {
-            "/ask": "POST — ask tax-related questions",
-            "/health": "GET — system health check"
-        }
+        'status' : 'OK',
+        'version' : '1.0.0'
     }
 
-# -----------------------------------------------------
-# ❤️ Health Check
-# -----------------------------------------------------
-@app.get("/health")
-async def health():
-    return {
-        "service": "finance-rag-bot",
-        "status": "OK",
-        "version": "1.0.0"
-    }
+# 10 Key Labels to Search
+OCR_TARGETS = {
+    "tax_deducted_at_source": r"Tax Deducted at Source",
+    "tan": r"Tax Deduction Account Number \(TAN\)",
+    "employee_pan": r"Permanent Account Number \(PAN\) of the Employee",
+    "employer_pan": r"PAN of the Employer",
+    "employer_address": r"Name and Address of the Employer",
+    "gross_salary": r"Gross Salary",
+    "section10": r"Exemptions under Section 10",
+    "standard_deduction": r"Standard Deduction",
+    "chapter6A": r"Deductions under Chapter VI-A",
+    "taxable_income": r"Total Taxable Income"
+}
 
-# -----------------------------------------------------
-# ❓ Question → Answer
-# -----------------------------------------------------
-@app.post("/ask")
-async def ask_api(payload: Query):
-    try:
-        question = payload.question.strip()
-        if not question:
-            raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-        logger.info(f"🙋 User asked: {question}")
-        answer = ask_bot(question)
+class ExtractionResult(BaseModel):
+    tax_deducted_at_source: str
+    tan: str
+    employee_pan: str
+    employer_pan: str
+    employer_address: str
+    gross_salary: str
+    section10: str
+    standard_deduction: str
+    chapter6A: str
+    taxable_income: str
 
-        return {
-            "question": question,
-            "answer": answer
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Unexpected error while processing request")
-        raise HTTPException(status_code=500, detail=str(e))
+
+def extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Extract text from PDF using PyMuPDF."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+        text += "\n"
+    return text
+
+
+@app.post("/extract", response_model=ExtractionResult)
+async def extract_form16(file: UploadFile = File(...)):
+    """Upload a Form-16 PDF and extract required fields."""
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
+
+    pdf_bytes = await file.read()
+    raw_text = extract_pdf_text(pdf_bytes)
+
+    extracted = {}
+
+    for key, pattern in OCR_TARGETS.items():
+        # search line containing the pattern
+        match = re.search(pattern + r".*", raw_text, flags=re.IGNORECASE)
+        if match:
+            extracted[key] = match.group(0).strip()
+        else:
+            extracted[key] = "Not Found"
+
+    return ExtractionResult(**extracted)

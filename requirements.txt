@@ -1,23 +1,5 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.0
 python-multipart==0.0.9
-
-# LangChain Stack
-langchain==0.3.7
-langchain-core==0.3.14
-langchain-community==0.3.5
-langchain-chroma==0.1.4
-langchain-groq==0.2.1
-langchain-huggingface==0.1.2
-
-# Embeddings
-sentence-transformers==3.0.1
-
-# Vector DB (local embedded)
-chromadb==0.5.12
-
-# LLM Credentials
-python-dotenv==1.0.1
-
-# Utils
+PyMuPDF==1.24.10
 pydantic==2.9.2
